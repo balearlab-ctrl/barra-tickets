@@ -87,7 +87,7 @@ export default function CartaClient({
             <img
               src={config.logo_url}
               alt={config.evento_nombre}
-              className="mx-auto mb-3 max-h-32 w-auto object-contain drop-shadow-[0_8px_30px_rgba(0,0,0,0.5)]"
+              className="mx-auto mb-3 max-h-48 w-auto object-contain drop-shadow-[0_8px_30px_rgba(0,0,0,0.5)]"
             />
           ) : (
             <span className="bt-dot mx-auto mb-3 block" />
