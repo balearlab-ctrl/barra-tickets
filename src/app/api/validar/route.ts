@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
-  const { codigo, soloConsultar } = await req.json();
+  const { codigo, soloConsultar, cantidad } = await req.json();
   if (!codigo || typeof codigo !== "string") {
     return NextResponse.json({ error: "Falta el código" }, { status: 400 });
   }
@@ -34,8 +34,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ resultado: "OK", pedido: data });
   }
 
-  // Modo canje: función SQL atómica (evita doble entrega).
-  const { data, error } = await admin.rpc("canjear_pedido", { p_codigo: code });
+  // Modo consumo: función SQL atómica (evita doble entrega / saldo negativo).
+  const q = Math.max(1, parseInt(cantidad, 10) || 1);
+  const { data, error } = await admin.rpc("consumir_pedido", {
+    p_codigo: code,
+    p_cantidad: q,
+  });
 
   if (error) {
     const msg = error.message || "";
@@ -45,9 +49,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ resultado: "NO_PAGADO" }, { status: 200 });
     if (msg.includes("NO_ENCONTRADO"))
       return NextResponse.json({ resultado: "NO_ENCONTRADO" }, { status: 200 });
+    if (msg.includes("SALDO_INSUFICIENTE"))
+      return NextResponse.json({ resultado: "SALDO_INSUFICIENTE" }, { status: 200 });
     console.error("validar error", error);
     return NextResponse.json({ error: "Error al validar" }, { status: 500 });
   }
 
-  return NextResponse.json({ resultado: "CANJEADO", pedido: data });
+  // Si el pedido quedó 'canjeado' está agotado; si sigue 'pagado', es un bono con saldo.
+  const agotado = (data as any)?.estado === "canjeado";
+  return NextResponse.json({
+    resultado: agotado ? "CANJEADO" : "PARCIAL",
+    pedido: data,
+  });
 }

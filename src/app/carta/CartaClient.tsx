@@ -13,6 +13,18 @@ export default function CartaClient({
 }) {
   const [cart, setCart] = useState<Record<string, number>>({});
   const [pagando, setPagando] = useState(false);
+  const [aviso, setAviso] = useState<string | null>(null);
+
+  const esBono = (p: Producto) => (p.consumiciones ?? 1) > 1;
+  const cartTieneBono = Object.keys(cart).some((id) => {
+    const p = productos.find((x) => x.id === id);
+    return p && esBono(p);
+  });
+
+  const mostrarAviso = (msg: string) => {
+    setAviso(msg);
+    setTimeout(() => setAviso(null), 2600);
+  };
 
   const categorias = useMemo(
     () => [...new Set(productos.map((p) => p.categoria))],
@@ -28,14 +40,45 @@ export default function CartaClient({
   );
   const count = Object.values(cart).reduce((a, b) => a + b, 0);
 
-  const chg = (id: string, d: number) =>
-    setCart((c) => {
-      const q = (c[id] || 0) + d;
-      const next = { ...c };
-      if (q <= 0) delete next[id];
-      else next[id] = q;
-      return next;
-    });
+  const chg = (id: string, d: number) => {
+    const p = productos.find((x) => x.id === id);
+    if (!p) return;
+
+    // Quitar siempre permitido
+    if (d < 0) {
+      setCart((c) => {
+        const q = (c[id] || 0) + d;
+        const next = { ...c };
+        if (q <= 0) delete next[id];
+        else next[id] = q;
+        return next;
+      });
+      return;
+    }
+
+    const yaEnCarro = !!cart[id];
+
+    if (esBono(p)) {
+      // El bonocopa va solo y de uno en uno (un QR por bono)
+      if (Object.keys(cart).length > 0 && !yaEnCarro) {
+        mostrarAviso("Los bonocopas se compran solos, en un pedido aparte.");
+        return;
+      }
+      if (yaEnCarro) {
+        mostrarAviso("Un QR por bonocopa: pídelos en pedidos separados.");
+        return;
+      }
+      setCart({ [id]: 1 });
+      return;
+    }
+
+    // Producto normal
+    if (cartTieneBono) {
+      mostrarAviso("Tienes un bonocopa en el carrito; se compra solo.");
+      return;
+    }
+    setCart((c) => ({ ...c, [id]: (c[id] || 0) + 1 }));
+  };
 
   const itemsParaApi = Object.entries(cart).map(([id, qty]) => ({ id, qty }));
 
@@ -80,6 +123,13 @@ export default function CartaClient({
       )}
       <div className="bt-aurora" aria-hidden />
 
+      {aviso && (
+        <div className="fixed inset-x-0 top-4 z-30 mx-auto max-w-xs rounded-xl border border-gold/40 bg-[#1a1520] px-4 py-3 text-center text-sm font-semibold text-gold shadow-xl">
+          {aviso}
+        </div>
+      )}
+
+
       <main className="relative mx-auto max-w-xl px-4 pb-32 pt-7">
         {/* HERO con logo */}
         <header className="mb-7 text-center">
@@ -119,17 +169,40 @@ export default function CartaClient({
               .filter((p) => p.categoria === cat)
               .map((p) => {
                 const q = cart[p.id] || 0;
+                const bono = esBono(p);
                 return (
                   <div
                     key={p.id}
                     className={`bt-item ${q > 0 ? "bt-item-on" : ""}`}
                   >
                     <div>
-                      <div className="font-semibold">{p.nombre}</div>
-                      <div className="bt-price">{euros(p.precio_cent)}</div>
+                      <div className="font-semibold">
+                        {p.nombre}
+                        {bono && <span className="bt-bonotag">🎟️ ×{p.consumiciones}</span>}
+                      </div>
+                      <div className="bt-price">
+                        {euros(p.precio_cent)}
+                        {bono && (
+                          <span className="text-white/40"> · {p.consumiciones} consumiciones</span>
+                        )}
+                      </div>
                     </div>
                     <div className="flex-1" />
-                    {q > 0 ? (
+                    {bono ? (
+                      q > 0 ? (
+                        <button
+                          className="bt-add"
+                          style={{ background: "rgba(255,255,255,0.12)" }}
+                          onClick={() => chg(p.id, -1)}
+                        >
+                          Quitar
+                        </button>
+                      ) : (
+                        <button className="bt-add" onClick={() => chg(p.id, 1)}>
+                          Añadir
+                        </button>
+                      )
+                    ) : q > 0 ? (
                       <div className="bt-stepper">
                         <button onClick={() => chg(p.id, -1)}>–</button>
                         <span>{q}</span>
@@ -213,6 +286,9 @@ function Estilos() {
       .bt-item-on{ border-color:color-mix(in srgb, var(--c1) 55%, transparent);
         box-shadow:0 0 0 1px color-mix(in srgb, var(--c1) 35%, transparent), 0 8px 28px color-mix(in srgb, var(--c1) 18%, transparent); }
       .bt-price{ font-family:'Space Mono',monospace; font-size:13px; color:#fff; opacity:.6; margin-top:2px; }
+      .bt-bonotag{ margin-left:8px; font-family:Syne; font-weight:800; font-size:11px; color:#F5C04E;
+        background:rgba(245,192,78,0.14); border:1px solid rgba(245,192,78,0.4);
+        padding:2px 8px; border-radius:999px; vertical-align:middle; }
 
       .bt-add{ border:0; border-radius:12px; padding:11px 16px; font-weight:700; font-size:13px;
         color:#fff; cursor:pointer; font-family:Syne;

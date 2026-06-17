@@ -5,6 +5,7 @@ export type Producto = {
   precio_cent: number;
   activo: boolean;
   orden: number;
+  consumiciones: number; // 1 = normal; >1 = bonocopa
 };
 
 export type PedidoItem = {
@@ -25,6 +26,8 @@ export type Pedido = {
   creado_en: string;
   pagado_en: string | null;
   canjeado_en: string | null;
+  consumiciones_total: number | null; // null = pedido normal
+  consumiciones_restantes: number | null;
 };
 
 export type Config = {

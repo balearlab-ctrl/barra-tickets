@@ -9,7 +9,9 @@ export async function GET(
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("pedidos")
-    .select("codigo, items, total_cent, estado, mesa, creado_en")
+    .select(
+      "codigo, items, total_cent, estado, mesa, creado_en, consumiciones_total, consumiciones_restantes"
+    )
     .eq("codigo", params.codigo.toUpperCase())
     .maybeSingle();
 

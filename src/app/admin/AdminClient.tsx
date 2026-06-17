@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Producto, Pedido, Config, euros, CONFIG_DEFECTO } from "@/lib/types";
 
-const vacio = { nombre: "", categoria: "", precioStr: "", activo: true };
+const vacio = { nombre: "", categoria: "", precioStr: "", activo: true, esBono: false, consumiciones: "4" };
 
 const VIBES: { nombre: string; c1: string; c2: string; bg: string }[] = [
   { nombre: "Neón rosa", c1: "#FF2D78", c2: "#7C5CFF", bg: "#0B0A0F" },
@@ -137,6 +137,8 @@ export default function AdminClient({ email }: { email: string }) {
       categoria: p.categoria,
       precioStr: (p.precio_cent / 100).toString(),
       activo: p.activo,
+      esBono: (p.consumiciones ?? 1) > 1,
+      consumiciones: String(p.consumiciones ?? 4),
     });
     setMostrarForm(true);
   };
@@ -145,11 +147,13 @@ export default function AdminClient({ email }: { email: string }) {
       parseFloat(form.precioStr.replace(",", ".")) * 100
     );
     if (!form.nombre.trim() || isNaN(precio_cent)) return;
+    const cons = form.esBono ? Math.max(2, parseInt(form.consumiciones, 10) || 2) : 1;
     const fila = {
       nombre: form.nombre.trim(),
       categoria: form.categoria.trim() || "Otros",
       precio_cent,
       activo: form.activo,
+      consumiciones: cons,
     };
     if (editId) await supabase.from("productos").update(fila).eq("id", editId);
     else await supabase.from("productos").insert(fila);
@@ -196,10 +200,34 @@ export default function AdminClient({ email }: { email: string }) {
           <Campo label="Precio (€)">
             <input value={form.precioStr} onChange={(e) => setForm({ ...form, precioStr: e.target.value })} inputMode="decimal" className="campo" placeholder="9" />
           </Campo>
-          <label className="mb-4 flex items-center gap-2 text-sm">
+          <label className="mb-3 flex items-center gap-2 text-sm">
             <input type="checkbox" checked={form.activo} onChange={(e) => setForm({ ...form, activo: e.target.checked })} />
             Visible en la carta
           </label>
+
+          <div className="mb-4 rounded-xl border border-line bg-panel2 p-3">
+            <label className="flex items-center gap-2 text-sm font-semibold">
+              <input type="checkbox" checked={form.esBono} onChange={(e) => setForm({ ...form, esBono: e.target.checked })} />
+              🎟️ Es un bonocopa (varias consumiciones)
+            </label>
+            {form.esBono && (
+              <div className="mt-3">
+                <label className="mb-1 block text-xs font-semibold text-muted">Nº de consumiciones</label>
+                <input
+                  value={form.consumiciones}
+                  onChange={(e) => setForm({ ...form, consumiciones: e.target.value.replace(/[^0-9]/g, "") })}
+                  inputMode="numeric"
+                  className="campo"
+                  placeholder="4"
+                />
+                <p className="mt-2 text-xs text-muted">
+                  El cliente paga una vez y el QR vale para estas consumiciones. Los bonocopas
+                  se compran solos (un QR por bono).
+                </p>
+              </div>
+            )}
+          </div>
+
           <div className="flex gap-2">
             <button onClick={() => setMostrarForm(false)} className="flex-1 rounded-lg border border-line py-3 font-semibold">Cancelar</button>
             <button onClick={guardar} className="flex-1 rounded-lg bg-violet py-3 font-semibold text-white">Guardar</button>
@@ -312,7 +340,14 @@ export default function AdminClient({ email }: { email: string }) {
         {productos.map((p) => (
           <div key={p.id} className="grid grid-cols-[1fr_auto_auto] items-center gap-2 border-b border-line py-3 last:border-0">
             <div>
-              <div className="font-semibold">{p.nombre}</div>
+              <div className="font-semibold">
+                {p.nombre}
+                {(p.consumiciones ?? 1) > 1 && (
+                  <span className="ml-2 rounded-full border border-gold/40 bg-gold/10 px-2 py-0.5 text-[10px] font-bold uppercase text-gold">
+                    Bono ×{p.consumiciones}
+                  </span>
+                )}
+              </div>
               <div className="text-xs text-muted">{p.categoria} · <span className={p.activo ? "" : "text-bad"}>{p.activo ? "visible" : "oculto"}</span></div>
             </div>
             <div className="font-mono font-bold">{euros(p.precio_cent)}</div>

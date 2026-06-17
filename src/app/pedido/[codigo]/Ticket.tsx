@@ -9,6 +9,8 @@ type PedidoLite = {
   items: PedidoItem[];
   total_cent: number;
   estado: string;
+  consumiciones_total: number | null;
+  consumiciones_restantes: number | null;
 };
 
 export default function Ticket({
@@ -39,14 +41,20 @@ export default function Ticket({
     tick();
     const iv = setInterval(() => {
       setPedido((p) => {
-        if (p && (p.estado === "pagado" || p.estado === "canjeado")) {
+        // Se deja de consultar cuando ya no puede cambiar nada:
+        // pedido canjeado, o pedido normal ya pagado (sin consumiciones).
+        const fin =
+          p &&
+          (p.estado === "canjeado" ||
+            (p.estado === "pagado" && p.consumiciones_total == null));
+        if (fin) {
           clearInterval(iv);
           return p;
         }
         tick();
         return p;
       });
-    }, 2000);
+    }, 2500);
     return () => {
       activo = false;
       clearInterval(iv);
@@ -101,6 +109,13 @@ export default function Ticket({
             </div>
             <div className="tk-code mt-4">{codigo}</div>
             <div className="text-xs text-white/45">{config.evento_nombre}</div>
+            {pedido?.consumiciones_total != null && (
+              <div className="tk-bono">
+                {pedido.estado === "canjeado"
+                  ? "🎟️ Bonocopa agotado"
+                  : `🎟️ Bonocopa · quedan ${pedido.consumiciones_restantes} de ${pedido.consumiciones_total}`}
+              </div>
+            )}
           </div>
 
           <div className="relative border-t-2 border-dashed border-white/15">
@@ -151,6 +166,9 @@ export default function Ticket({
           background:linear-gradient(180deg, color-mix(in srgb, var(--c2) 16%, #15121d), #141019); }
         .tk-code{ font-family:'Space Mono',monospace; font-weight:700; font-size:32px; letter-spacing:0.14em;
           color:#F5C04E; }
+        .tk-bono{ margin-top:10px; display:inline-block; padding:7px 14px; border-radius:999px;
+          font-family:Syne; font-weight:800; font-size:14px; color:#F5C04E;
+          background:rgba(245,192,78,0.12); border:1px solid rgba(245,192,78,0.4); }
         .tk-gold{ color:#F5C04E; }
         .tk-notch{ position:absolute; top:-11px; width:22px; height:22px; border-radius:50%; background:var(--bg); }
       `}</style>

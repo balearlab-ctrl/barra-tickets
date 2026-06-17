@@ -28,6 +28,7 @@ export async function POST(req: NextRequest) {
 
     const lineas = [] as { nombre: string; precio_cent: number; qty: number }[];
     let total = 0;
+    let consumiciones_total: number | null = null;
 
     for (const item of items) {
       const p = (productos as Producto[]).find((x) => x.id === item.id);
@@ -39,6 +40,22 @@ export async function POST(req: NextRequest) {
 
     if (lineas.length === 0 || total <= 0) {
       return NextResponse.json({ error: "Productos no válidos" }, { status: 400 });
+    }
+
+    // ¿Hay algún bonocopa? (producto con más de 1 consumición)
+    const bonos = items
+      .map((i: any) => (productos as Producto[]).find((x) => x.id === i.id))
+      .filter((p): p is Producto => !!p && p.consumiciones > 1);
+
+    if (bonos.length > 0) {
+      // Regla: el bonocopa se compra solo, 1 por pedido (un QR por bono).
+      if (lineas.length !== 1 || items[0].qty != 1) {
+        return NextResponse.json(
+          { error: "El bonocopa se compra solo y de uno en uno" },
+          { status: 400 }
+        );
+      }
+      consumiciones_total = bonos[0].consumiciones;
     }
 
     // Código único (reintenta si colisiona)
@@ -68,6 +85,8 @@ export async function POST(req: NextRequest) {
       total_cent: total,
       estado: "pendiente",
       payment_intent_id: paymentIntent.id,
+      consumiciones_total: consumiciones_total,
+      consumiciones_restantes: consumiciones_total,
     });
     if (insErr) throw insErr;
 
