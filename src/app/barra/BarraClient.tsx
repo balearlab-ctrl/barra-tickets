@@ -27,6 +27,9 @@ export default function BarraClient() {
   const scannerRef = useRef<any>(null);
   const audioRef = useRef<AudioContext | null>(null);
 
+  type Servido = { codigo: string; items: Pedido["items"]; total_cent: number; hora: string };
+  const [servidos, setServidos] = useState<Servido[]>([]);
+
   // --- sonido y vibración ---
   const initAudio = () => {
     try {
@@ -111,6 +114,18 @@ export default function BarraClient() {
       const d = await r.json();
       if (d.resultado === "CANJEADO") {
         setEstado({ tipo: "canjeado", pedido: d.pedido });
+        setServidos((prev) => [
+          {
+            codigo: d.pedido.codigo,
+            items: d.pedido.items,
+            total_cent: d.pedido.total_cent,
+            hora: new Date().toLocaleTimeString("es-ES", {
+              hour: "2-digit",
+              minute: "2-digit",
+            }),
+          },
+          ...prev,
+        ]);
         feedback(true);
       } else if (d.resultado === "YA_CANJEADO") {
         setEstado({ tipo: "ya" });
@@ -321,6 +336,34 @@ export default function BarraClient() {
           </button>
         </div>
       </div>
+
+      {servidos.length > 0 && (
+        <section className="mt-4 rounded-2xl border border-line bg-panel p-4">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-[11px] uppercase tracking-[0.16em] text-muted">
+              Servidos en este turno · {servidos.length}
+            </p>
+            <button
+              onClick={() => setServidos([])}
+              className="text-xs text-muted underline"
+            >
+              Vaciar
+            </button>
+          </div>
+          {servidos.map((s, idx) => (
+            <div
+              key={idx}
+              className="flex items-center gap-3 border-b border-line py-2.5 last:border-0"
+            >
+              <span className="font-mono text-sm font-bold text-gold">{s.codigo}</span>
+              <span className="flex-1 truncate text-sm text-muted">
+                {s.items.map((i) => `${i.qty}× ${i.nombre}`).join(" · ")}
+              </span>
+              <span className="font-mono text-xs text-muted">{s.hora}</span>
+            </div>
+          ))}
+        </section>
+      )}
 
       <p className="mt-4 text-xs text-muted">
         Pulsa “Escanear QR” y enfoca el código del cliente; se validará solo. Si falla la
