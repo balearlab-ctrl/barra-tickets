@@ -61,13 +61,10 @@ function LoginForm() {
           <img
             src={logo}
             alt={evento || "Logo"}
-            className="mb-3 max-h-28 w-auto object-contain drop-shadow-[0_8px_30px_rgba(0,0,0,0.5)]"
+            className="mb-3 max-h-52 w-auto object-contain drop-shadow-[0_8px_30px_rgba(0,0,0,0.5)]"
           />
         ) : (
           <span className="mb-3 h-3 w-3 rounded-full bg-magenta shadow-[0_0_14px_#FF2D78]" />
-        )}
-        {evento && (
-          <div className="font-display text-xl font-extrabold tracking-tight">{evento}</div>
         )}
         <h1 className="mt-1 text-sm font-semibold text-muted">Acceso del personal</h1>
       </div>
