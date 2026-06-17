@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { euros, type Pedido } from "@/lib/types";
 
 type Estado =
@@ -12,10 +12,20 @@ type Estado =
   | { tipo: "noexiste" }
   | { tipo: "error" };
 
+// Extrae el código de lo que contiene el QR (formato "TICKET:AB-CD").
+function extraerCodigo(texto: string): string {
+  const t = texto.trim();
+  const i = t.indexOf(":");
+  return (i >= 0 ? t.slice(i + 1) : t).trim().toUpperCase();
+}
+
 export default function BarraClient() {
   const [codigo, setCodigo] = useState("");
   const [estado, setEstado] = useState<Estado>({ tipo: "idle" });
   const [cargando, setCargando] = useState(false);
+  const [escaneando, setEscaneando] = useState(false);
+  const [camError, setCamError] = useState<string | null>(null);
+  const scannerRef = useRef<any>(null);
 
   const consultar = async (code: string) => {
     const c = code.trim().toUpperCase();
@@ -60,6 +70,52 @@ export default function BarraClient() {
     }
   };
 
+  // Arranca / detiene la cámara cuando se activa el escaneo.
+  useEffect(() => {
+    if (!escaneando) return;
+    let activo = true;
+    setCamError(null);
+
+    (async () => {
+      try {
+        const { Html5Qrcode } = await import("html5-qrcode");
+        if (!activo) return;
+        const scanner = new Html5Qrcode("qr-reader", { verbose: false } as any);
+        scannerRef.current = scanner;
+        await scanner.start(
+          { facingMode: "environment" },
+          { fps: 10, qrbox: { width: 230, height: 230 } },
+          (texto: string) => {
+            const code = extraerCodigo(texto);
+            setCodigo(code);
+            pararEscaner();
+            consultar(code);
+          },
+          () => {}
+        );
+      } catch (e: any) {
+        if (activo) {
+          setCamError(
+            "No se pudo abrir la cámara. Revisa los permisos del navegador o escribe el código a mano."
+          );
+          setEscaneando(false);
+        }
+      }
+    })();
+
+    return () => {
+      activo = false;
+      const s = scannerRef.current;
+      if (s) {
+        s.stop().then(() => s.clear()).catch(() => {});
+        scannerRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [escaneando]);
+
+  const pararEscaner = () => setEscaneando(false);
+
   return (
     <main className="mx-auto max-w-xl px-4 py-6">
       <header className="mb-5 flex items-center gap-3">
@@ -68,8 +124,36 @@ export default function BarraClient() {
       </header>
 
       <div className="rounded-2xl border border-line bg-panel p-5">
+        {/* Escáner de QR */}
+        {!escaneando ? (
+          <button
+            onClick={() => {
+              setEstado({ tipo: "idle" });
+              setEscaneando(true);
+            }}
+            className="mb-4 flex w-full items-center justify-center gap-2 rounded-xl bg-violet py-3.5 font-semibold text-white"
+          >
+            📷 Escanear QR
+          </button>
+        ) : (
+          <div className="mb-4">
+            <div
+              id="qr-reader"
+              className="overflow-hidden rounded-xl border border-line"
+            />
+            <button
+              onClick={pararEscaner}
+              className="mt-2 w-full rounded-lg border border-line py-2.5 text-sm font-semibold"
+            >
+              Cancelar escaneo
+            </button>
+          </div>
+        )}
+
+        {camError && <p className="mb-3 text-sm text-bad">{camError}</p>}
+
         <label className="mb-1 block text-xs font-semibold text-muted">
-          Código del pedido
+          …o introduce el código a mano
         </label>
         <div className="flex gap-2">
           <input
@@ -101,7 +185,8 @@ export default function BarraClient() {
           )}
           {estado.tipo === "ya" && (
             <Aviso tipo="bad" titulo="⚠ Ya canjeado">
-              Este pedido ya se sirvió{estado.cuando ? ` (${new Date(estado.cuando).toLocaleString("es-ES")})` : ""}.
+              Este pedido ya se sirvió
+              {estado.cuando ? ` (${new Date(estado.cuando).toLocaleString("es-ES")})` : ""}.
             </Aviso>
           )}
           {estado.tipo === "error" && (
@@ -144,8 +229,8 @@ export default function BarraClient() {
       </div>
 
       <p className="mt-4 text-xs text-muted">
-        Para escanear el QR puedes usar la cámara del móvil: el QR contiene el
-        código (formato <code className="font-mono">VERTIGO:AB-CD</code>).
+        Pulsa “Escanear QR” y enfoca el código del cliente; se validará solo. Si
+        falla la cámara, escribe el código a mano.
       </p>
     </main>
   );
