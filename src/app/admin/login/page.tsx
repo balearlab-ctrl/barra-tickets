@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
@@ -23,6 +23,24 @@ function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const [logo, setLogo] = useState<string | null>(null);
+  const [evento, setEvento] = useState<string>("");
+
+  useEffect(() => {
+    supabase
+      .from("config")
+      .select("evento_nombre, logo_url")
+      .eq("id", 1)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) {
+          setLogo((data as any).logo_url ?? null);
+          setEvento((data as any).evento_nombre ?? "");
+        }
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const entrar = async () => {
     setLoading(true);
     setError(null);
@@ -38,9 +56,20 @@ function LoginForm() {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-5">
-      <div className="mb-6 flex items-center gap-3">
-        <span className="h-3 w-3 rounded-full bg-magenta shadow-[0_0_14px_#FF2D78]" />
-        <h1 className="font-display text-lg font-extrabold">Acceso del personal</h1>
+      <div className="mb-7 flex flex-col items-center text-center">
+        {logo ? (
+          <img
+            src={logo}
+            alt={evento || "Logo"}
+            className="mb-3 max-h-28 w-auto object-contain drop-shadow-[0_8px_30px_rgba(0,0,0,0.5)]"
+          />
+        ) : (
+          <span className="mb-3 h-3 w-3 rounded-full bg-magenta shadow-[0_0_14px_#FF2D78]" />
+        )}
+        {evento && (
+          <div className="font-display text-xl font-extrabold tracking-tight">{evento}</div>
+        )}
+        <h1 className="mt-1 text-sm font-semibold text-muted">Acceso del personal</h1>
       </div>
 
       <div className="rounded-2xl border border-line bg-panel p-5">
