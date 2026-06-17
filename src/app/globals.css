@@ -1,0 +1,21 @@
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Inter:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: dark; }
+html, body { background: #0B0A0F; }
+body {
+  color: #F2EEF8;
+  font-family: Inter, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  background:
+    radial-gradient(900px 500px at 85% -10%, rgba(124,92,255,.18), transparent 60%),
+    radial-gradient(700px 460px at -5% 0%, rgba(255,45,120,.16), transparent 55%),
+    #0B0A0F;
+}
+* { box-sizing: border-box; }
+
+/* Stripe Payment Element hereda el fondo del contenedor */
+.StripeElement { width: 100%; }
