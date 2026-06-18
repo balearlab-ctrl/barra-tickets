@@ -156,6 +156,10 @@ export default function CartaClient({
           </p>
         </div>
 
+        <a href="/recuperar" className="bt-recuperar mb-6">
+          🎟️ Ya tengo un bono / pedido
+        </a>
+
         {productos.length === 0 && (
           <p className="py-10 text-center text-white/50">
             No hay productos disponibles ahora mismo.
@@ -218,12 +222,6 @@ export default function CartaClient({
               })}
           </section>
         ))}
-
-        <div className="mt-8 text-center">
-          <a href="/recuperar" className="text-sm text-white/55 underline">
-            ¿Cerraste tu pedido? Recupéralo aquí
-          </a>
-        </div>
       </main>
 
       {count > 0 && (
@@ -295,6 +293,12 @@ function Estilos() {
       .bt-bonotag{ margin-left:8px; font-family:Syne; font-weight:800; font-size:11px; color:#F5C04E;
         background:rgba(245,192,78,0.14); border:1px solid rgba(245,192,78,0.4);
         padding:2px 8px; border-radius:999px; vertical-align:middle; }
+      .bt-recuperar{ position:relative; z-index:1; display:flex; align-items:center; justify-content:center;
+        gap:8px; width:100%; padding:15px; border-radius:16px; font-family:Syne; font-weight:800; font-size:15px;
+        color:var(--c1); text-decoration:none;
+        background:color-mix(in srgb, var(--c1) 12%, transparent);
+        border:1.5px solid color-mix(in srgb, var(--c1) 45%, transparent); }
+      .bt-recuperar:active{ transform:scale(0.99); }
 
       .bt-add{ border:0; border-radius:12px; padding:11px 16px; font-weight:700; font-size:13px;
         color:#fff; cursor:pointer; font-family:Syne;
