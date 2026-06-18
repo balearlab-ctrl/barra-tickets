@@ -41,8 +41,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ resultado: "SIN_PEDIDOS" });
   }
 
-  const normales = pedidos.filter((x: any) => x.consumiciones_total == null);
-  const bonos = pedidos.filter((x: any) => x.consumiciones_total != null);
+  // El cliente solo ve el evento ACTUAL (no los archivados de fiestas pasadas).
+  // Lo archivado sigue contando para la factura (se calcula por móvil aparte).
+  const actuales = pedidos.filter((x: any) => !x.archivado);
+
+  const normales = actuales.filter((x: any) => x.consumiciones_total == null);
+  const bonos = actuales.filter((x: any) => x.consumiciones_total != null);
   const bonosSinClave = bonos.filter((x: any) => !x.pin_hash);
   const bonosConClave = bonos.filter((x: any) => !!x.pin_hash);
 
