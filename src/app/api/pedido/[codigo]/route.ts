@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 // Lectura pública limitada por código (el código es el "secreto" del cliente).
 export async function GET(
   _req: NextRequest,

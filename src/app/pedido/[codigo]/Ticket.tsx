@@ -37,7 +37,7 @@ export default function Ticket({
 
   const refetch = async () => {
     try {
-      const r = await fetch(`/api/pedido/${codigo}`);
+      const r = await fetch(`/api/pedido/${codigo}`, { cache: "no-store" });
       if (r.ok) {
         const d = await r.json();
         setPedido(d.pedido);
@@ -102,7 +102,7 @@ export default function Ticket({
     let activo = true;
     const tick = async () => {
       try {
-        const r = await fetch(`/api/pedido/${codigo}`);
+        const r = await fetch(`/api/pedido/${codigo}`, { cache: "no-store" });
         if (!r.ok) {
           if (activo) setError(true);
           return;
