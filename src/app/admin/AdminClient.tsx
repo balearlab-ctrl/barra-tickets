@@ -25,6 +25,7 @@ export default function AdminClient({ email }: { email: string }) {
   const [resultMovil, setResultMovil] = useState<Pedido[] | null>(null);
   const [reseteando, setReseteando] = useState(false);
   const [resetMsg, setResetMsg] = useState<string | null>(null);
+  const [facturas, setFacturas] = useState<any[]>([]);
   const [config, setConfig] = useState<Config>(CONFIG_DEFECTO);
   const [guardandoMarca, setGuardandoMarca] = useState(false);
   const [marcaOk, setMarcaOk] = useState(false);
@@ -50,8 +51,14 @@ export default function AdminClient({ email }: { email: string }) {
       .select("*")
       .eq("id", 1)
       .maybeSingle();
+    const { data: facts } = await supabase
+      .from("facturas")
+      .select("*")
+      .order("creado_en", { ascending: false })
+      .limit(50);
     setProductos((prods as Producto[]) || []);
     setPedidos((peds as Pedido[]) || []);
+    setFacturas(facts || []);
     if (cfg) setConfig(cfg as Config);
   };
 
@@ -59,6 +66,11 @@ export default function AdminClient({ email }: { email: string }) {
     cargar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const marcarEmitida = async (id: number) => {
+    await supabase.from("facturas").update({ estado: "emitida" }).eq("id", id);
+    setFacturas((fs) => fs.map((f) => (f.id === id ? { ...f, estado: "emitida" } : f)));
+  };
 
   const buscarPorMovil = async () => {
     const m = buscarMovil.replace(/[^0-9]/g, "");
@@ -408,6 +420,48 @@ export default function AdminClient({ email }: { email: string }) {
       </section>
 
       {/* ====== PEDIDOS ====== */}
+      <section className="mb-4 rounded-2xl border border-line bg-panel p-4">
+        <p className="mb-2 text-[11px] uppercase tracking-[0.16em] text-muted">
+          Solicitudes de factura {facturas.length > 0 && `· ${facturas.length}`}
+        </p>
+        {facturas.length === 0 && (
+          <p className="py-3 text-center text-sm text-muted">Sin solicitudes todavía.</p>
+        )}
+        {facturas.map((f) => (
+          <div key={f.id} className="border-b border-line py-3 last:border-0">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold">{f.nombre}</span>
+              <span
+                className={`rounded-full border px-2 py-0.5 text-[10px] uppercase ${
+                  f.estado === "emitida" ? "border-good/40 text-good" : "border-gold/40 text-gold"
+                }`}
+              >
+                {f.estado}
+              </span>
+            </div>
+            <div className="mt-0.5 text-xs text-muted">
+              NIF {f.nif} · {euros(f.total_cent)} · {f.email}
+            </div>
+            {(f.direccion || f.poblacion) && (
+              <div className="text-xs text-muted">
+                {[f.direccion, f.cp, f.poblacion].filter(Boolean).join(", ")}
+              </div>
+            )}
+            <div className="mt-0.5 text-xs text-muted">
+              Móvil {f.movil} · {new Date(f.creado_en).toLocaleString("es-ES")}
+            </div>
+            {f.estado !== "emitida" && (
+              <button
+                onClick={() => marcarEmitida(f.id)}
+                className="mt-2 rounded-lg border border-line px-3 py-1.5 text-xs font-semibold"
+              >
+                Marcar como emitida
+              </button>
+            )}
+          </div>
+        ))}
+      </section>
+
       <section className="mb-4 rounded-2xl border border-line bg-panel p-4">
         <p className="mb-2 text-[11px] uppercase tracking-[0.16em] text-muted">
           Buscar pedido por móvil

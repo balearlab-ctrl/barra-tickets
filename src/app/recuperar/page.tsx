@@ -35,6 +35,44 @@ export default function RecuperarPage() {
   const [errNueva, setErrNueva] = useState<string | null>(null);
   const [guardandoClave, setGuardandoClave] = useState(false);
 
+  // Solicitud de factura
+  const [verFactura, setVerFactura] = useState(false);
+  const [fact, setFact] = useState({
+    nombre: "",
+    nif: "",
+    direccion: "",
+    cp: "",
+    poblacion: "",
+    email: "",
+  });
+  const [enviandoFact, setEnviandoFact] = useState(false);
+  const [factMsg, setFactMsg] = useState<string | null>(null);
+  const [factErr, setFactErr] = useState<string | null>(null);
+
+  const enviarFactura = async () => {
+    setFactErr(null);
+    if (!fact.nombre.trim()) return setFactErr("Pon tu nombre o razón social.");
+    if (!fact.nif.trim()) return setFactErr("Pon tu NIF/CIF.");
+    if (!/.+@.+\..+/.test(fact.email)) return setFactErr("Pon un email válido.");
+    setEnviandoFact(true);
+    try {
+      const r = await fetch("/api/factura", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ movil, ...fact }),
+      });
+      const d = await r.json();
+      if (d.ok) {
+        setFactMsg("✓ Solicitud recibida. Te enviaremos la factura a tu correo.");
+        setVerFactura(false);
+      } else setFactErr(d.error || "No se pudo enviar.");
+    } catch {
+      setFactErr("Error de conexión.");
+    } finally {
+      setEnviandoFact(false);
+    }
+  };
+
   const buscar = async (pinArg?: string) => {
     setError(null);
     setCargando(true);
@@ -259,6 +297,83 @@ export default function RecuperarPage() {
               </div>
             </>
           )}
+
+          {/* Solicitar factura (escondido abajo) */}
+          <div className="mt-8 border-t border-line pt-4">
+            {factMsg ? (
+              <p className="text-center text-sm text-good">{factMsg}</p>
+            ) : !verFactura ? (
+              <button
+                onClick={() => setVerFactura(true)}
+                className="w-full text-center text-sm text-muted underline"
+              >
+                ¿Necesitas factura de tus consumos?
+              </button>
+            ) : (
+              <div className="rounded-2xl border border-line bg-panel p-4">
+                <p className="mb-1 text-sm font-semibold">Solicitar factura</p>
+                <p className="mb-3 text-xs text-muted">
+                  Déjanos tus datos fiscales y te la enviaremos a tu correo.
+                </p>
+                <input
+                  value={fact.nombre}
+                  onChange={(e) => setFact({ ...fact, nombre: e.target.value })}
+                  placeholder="Nombre o razón social"
+                  className="mb-2 w-full rounded-lg border border-line bg-ink px-3 py-2.5 outline-none focus:border-violet"
+                />
+                <input
+                  value={fact.nif}
+                  onChange={(e) => setFact({ ...fact, nif: e.target.value })}
+                  placeholder="NIF / CIF"
+                  className="mb-2 w-full rounded-lg border border-line bg-ink px-3 py-2.5 outline-none focus:border-violet"
+                />
+                <input
+                  value={fact.direccion}
+                  onChange={(e) => setFact({ ...fact, direccion: e.target.value })}
+                  placeholder="Dirección"
+                  className="mb-2 w-full rounded-lg border border-line bg-ink px-3 py-2.5 outline-none focus:border-violet"
+                />
+                <div className="mb-2 flex gap-2">
+                  <input
+                    value={fact.cp}
+                    onChange={(e) => setFact({ ...fact, cp: e.target.value })}
+                    placeholder="C.P."
+                    inputMode="numeric"
+                    className="w-1/3 rounded-lg border border-line bg-ink px-3 py-2.5 outline-none focus:border-violet"
+                  />
+                  <input
+                    value={fact.poblacion}
+                    onChange={(e) => setFact({ ...fact, poblacion: e.target.value })}
+                    placeholder="Población"
+                    className="w-2/3 rounded-lg border border-line bg-ink px-3 py-2.5 outline-none focus:border-violet"
+                  />
+                </div>
+                <input
+                  value={fact.email}
+                  onChange={(e) => setFact({ ...fact, email: e.target.value })}
+                  placeholder="Email donde enviarla"
+                  inputMode="email"
+                  className="mb-3 w-full rounded-lg border border-line bg-ink px-3 py-2.5 outline-none focus:border-violet"
+                />
+                {factErr && <p className="mb-2 text-sm text-bad">{factErr}</p>}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setVerFactura(false)}
+                    className="flex-1 rounded-lg border border-line py-2.5 text-sm font-semibold"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={enviarFactura}
+                    disabled={enviandoFact}
+                    className="flex-1 rounded-lg bg-violet py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+                  >
+                    {enviandoFact ? "Enviando…" : "Solicitar factura"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </main>
