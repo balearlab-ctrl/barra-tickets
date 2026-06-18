@@ -12,6 +12,7 @@ type PedidoLite = {
   consumiciones_total: number | null;
   consumiciones_restantes: number | null;
   protegido: boolean;
+  tieneClave: boolean;
 };
 
 export default function Ticket({
@@ -154,6 +155,12 @@ export default function Ticket({
   const confirmado =
     pedido && (pedido.estado === "pagado" || pedido.estado === "canjeado");
 
+  // Necesita proteger si: copa sin móvil, o bono sin clave (p.ej. tras un reseteo).
+  const necesitaProteger =
+    !!confirmado &&
+    !!pedido &&
+    (!pedido.protegido || (esBono && !pedido.tieneClave));
+
   return (
     <div style={themeVars} className="tk-root">
       <div className="tk-aurora" aria-hidden />
@@ -182,14 +189,14 @@ export default function Ticket({
               <div
                 className="inline-block rounded-2xl bg-white p-3"
                 style={
-                  confirmado && pedido && !pedido.protegido
+                  necesitaProteger
                     ? { filter: "blur(9px)", opacity: 0.5 }
                     : undefined
                 }
               >
                 <QRCodeSVG value={`TICKET:${codigo}`} size={156} level="M" />
               </div>
-              {confirmado && pedido && !pedido.protegido && (
+              {necesitaProteger && (
                 <div className="absolute inset-0 flex items-center justify-center text-3xl">
                   🔒
                 </div>
@@ -237,7 +244,7 @@ export default function Ticket({
         </p>
       </main>
 
-      {confirmado && pedido && !pedido.protegido && (
+      {necesitaProteger && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 px-4 pb-6 pt-10 backdrop-blur-sm sm:items-center">
           <div className="w-full max-w-sm rounded-3xl border border-line bg-panel p-5">
             <div className="mb-1 text-center text-3xl">🔒</div>

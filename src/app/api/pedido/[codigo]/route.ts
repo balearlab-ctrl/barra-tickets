@@ -10,7 +10,7 @@ export async function GET(
   const { data, error } = await supabase
     .from("pedidos")
     .select(
-      "codigo, items, total_cent, estado, mesa, creado_en, consumiciones_total, consumiciones_restantes, movil"
+      "codigo, items, total_cent, estado, mesa, creado_en, consumiciones_total, consumiciones_restantes, movil, pin_hash"
     )
     .eq("codigo", params.codigo.toUpperCase())
     .maybeSingle();
@@ -19,7 +19,9 @@ export async function GET(
     return NextResponse.json({ error: "No encontrado" }, { status: 404 });
   }
 
-  // No exponemos el móvil; solo si ya está protegido.
-  const { movil, ...resto } = data as any;
-  return NextResponse.json({ pedido: { ...resto, protegido: !!movil } });
+  // No exponemos móvil ni clave; solo si está protegido y si tiene clave.
+  const { movil, pin_hash, ...resto } = data as any;
+  return NextResponse.json({
+    pedido: { ...resto, protegido: !!movil, tieneClave: !!pin_hash },
+  });
 }

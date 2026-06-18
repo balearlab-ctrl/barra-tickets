@@ -23,6 +23,8 @@ export default function AdminClient({ email }: { email: string }) {
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [buscarMovil, setBuscarMovil] = useState("");
   const [resultMovil, setResultMovil] = useState<Pedido[] | null>(null);
+  const [reseteando, setReseteando] = useState(false);
+  const [resetMsg, setResetMsg] = useState<string | null>(null);
   const [config, setConfig] = useState<Config>(CONFIG_DEFECTO);
   const [guardandoMarca, setGuardandoMarca] = useState(false);
   const [marcaOk, setMarcaOk] = useState(false);
@@ -70,6 +72,34 @@ export default function AdminClient({ email }: { email: string }) {
       .eq("movil", m)
       .order("creado_en", { ascending: false });
     setResultMovil((data as Pedido[]) || []);
+    setResetMsg(null);
+  };
+
+  const resetearClave = async () => {
+    const m = buscarMovil.replace(/[^0-9]/g, "");
+    if (m.length < 6) return;
+    if (
+      !confirm(
+        "¿Quitar la clave de TODOS los pedidos de este móvil? El cliente tendrá que crear una nueva al abrir su ticket."
+      )
+    )
+      return;
+    setReseteando(true);
+    setResetMsg(null);
+    try {
+      const r = await fetch("/api/reset-clave", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ movil: m }),
+      });
+      const d = await r.json();
+      if (d.ok) setResetMsg("✓ Clave reseteada. El cliente la creará de nuevo al abrir su ticket.");
+      else setResetMsg(d.error || "No se pudo resetear.");
+    } catch {
+      setResetMsg("Error de conexión.");
+    } finally {
+      setReseteando(false);
+    }
   };
 
   // ---- Marca ----
@@ -416,6 +446,14 @@ export default function AdminClient({ email }: { email: string }) {
                 </span>
               </div>
             ))}
+            <button
+              onClick={resetearClave}
+              disabled={reseteando}
+              className="mt-3 w-full rounded-lg border border-bad/40 py-2.5 text-sm font-semibold text-bad disabled:opacity-50"
+            >
+              {reseteando ? "Reseteando…" : "🔑 Resetear clave de este móvil"}
+            </button>
+            {resetMsg && <p className="mt-2 text-center text-xs text-muted">{resetMsg}</p>}
           </div>
         )}
       </section>
