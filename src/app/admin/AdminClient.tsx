@@ -59,6 +59,7 @@ export default function AdminClient({ email }: { email: string }) {
     const { data: peds } = await supabase
       .from("pedidos")
       .select("*")
+      .eq("archivado", false)
       .order("creado_en", { ascending: false })
       .limit(20);
     const { data: cfg } = await supabase
@@ -86,10 +87,11 @@ export default function AdminClient({ email }: { email: string }) {
       .limit(50);
     setEventos(evs || []);
 
-    // Resumen del evento: TODOS los pedidos pagados/canjeados
+    // Resumen del evento: TODOS los pedidos pagados/canjeados (no archivados)
     const { data: todos } = await supabase
       .from("pedidos")
       .select("total_cent, estado, items, consumiciones_total, consumiciones_restantes")
+      .eq("archivado", false)
       .in("estado", ["pagado", "canjeado"]);
     const lista = (todos as any[]) || [];
     let ingresos = 0,
@@ -161,7 +163,7 @@ export default function AdminClient({ email }: { email: string }) {
   const ejecutarReinicio = async () => {
     if (
       !confirm(
-        "Vas a CERRAR el evento actual: se archivará el resumen y se borrarán los pedidos para empezar limpio. ¿Continuar?"
+        "Vas a CERRAR el evento actual: se archivará el resumen y los pedidos pasarán al histórico (el panel quedará limpio). Los clientes aún podrán pedir factura. ¿Continuar?"
       )
     )
       return;

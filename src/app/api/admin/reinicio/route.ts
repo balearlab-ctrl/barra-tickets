@@ -29,10 +29,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Clave de reinicio incorrecta." }, { status: 401 });
   }
 
-  // Calcula el resumen de la fiesta actual
+  // Calcula el resumen de la fiesta actual (no archivada)
   const { data: todos } = await admin
     .from("pedidos")
     .select("total_cent, estado, items, consumiciones_total, consumiciones_restantes")
+    .eq("archivado", false)
     .in("estado", ["pagado", "canjeado"]);
 
   const lista = (todos as any[]) || [];
@@ -82,9 +83,9 @@ export async function POST(req: NextRequest) {
     resumen,
   });
 
-  // Limpia para la siguiente fiesta (los logs se borran en cascada con los pedidos)
-  await admin.from("pedidos").delete().not("id", "is", null);
-  await admin.from("recuperacion_rate").delete().not("movil", "is", null);
+  // Marca los pedidos como archivados (NO se borran: así se pueden facturar
+  // después del evento). El panel del día solo muestra los no archivados.
+  await admin.from("pedidos").update({ archivado: true }).eq("archivado", false);
 
   return NextResponse.json({ ok: true, resumen });
 }
