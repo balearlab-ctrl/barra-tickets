@@ -218,6 +218,12 @@ export default function CartaClient({
               })}
           </section>
         ))}
+
+        <div className="mt-8 text-center">
+          <a href="/recuperar" className="text-sm text-white/55 underline">
+            ¿Cerraste tu pedido? Recupéralo aquí
+          </a>
+        </div>
       </main>
 
       {count > 0 && (

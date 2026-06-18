@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { generarCodigo } from "@/lib/codigo";
+import { hashPin, normalizarMovil } from "@/lib/pin";
 import type { Producto } from "@/lib/types";
 
 // Recibe { items: [{ id, qty }], mesa }.
@@ -9,10 +10,19 @@ import type { Producto } from "@/lib/types";
 // Recalculamos todo desde la base de datos.
 export async function POST(req: NextRequest) {
   try {
-    const { items, mesa } = await req.json();
+    const { items, mesa, movil, pin } = await req.json();
 
     if (!Array.isArray(items) || items.length === 0) {
       return NextResponse.json({ error: "Carrito vacío" }, { status: 400 });
+    }
+
+    const movilLimpio = normalizarMovil(movil || "");
+    const pinLimpio = (pin || "").toString().trim();
+    if (movilLimpio.length < 6) {
+      return NextResponse.json({ error: "Móvil no válido" }, { status: 400 });
+    }
+    if (!/^\d{4}$/.test(pinLimpio)) {
+      return NextResponse.json({ error: "La clave debe tener 4 cifras" }, { status: 400 });
     }
 
     const supabase = createAdminClient();
@@ -87,6 +97,8 @@ export async function POST(req: NextRequest) {
       payment_intent_id: paymentIntent.id,
       consumiciones_total: consumiciones_total,
       consumiciones_restantes: consumiciones_total,
+      movil: movilLimpio,
+      pin_hash: hashPin(pinLimpio),
     });
     if (insErr) throw insErr;
 

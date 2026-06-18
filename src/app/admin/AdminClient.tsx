@@ -21,6 +21,8 @@ export default function AdminClient({ email }: { email: string }) {
 
   const [productos, setProductos] = useState<Producto[]>([]);
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
+  const [buscarMovil, setBuscarMovil] = useState("");
+  const [resultMovil, setResultMovil] = useState<Pedido[] | null>(null);
   const [config, setConfig] = useState<Config>(CONFIG_DEFECTO);
   const [guardandoMarca, setGuardandoMarca] = useState(false);
   const [marcaOk, setMarcaOk] = useState(false);
@@ -55,6 +57,20 @@ export default function AdminClient({ email }: { email: string }) {
     cargar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const buscarPorMovil = async () => {
+    const m = buscarMovil.replace(/[^0-9]/g, "");
+    if (m.length < 3) {
+      setResultMovil(null);
+      return;
+    }
+    const { data } = await supabase
+      .from("pedidos")
+      .select("*")
+      .eq("movil", m)
+      .order("creado_en", { ascending: false });
+    setResultMovil((data as Pedido[]) || []);
+  };
 
   // ---- Marca ----
   const subirLogo = (file: File) => {
@@ -362,6 +378,48 @@ export default function AdminClient({ email }: { email: string }) {
       </section>
 
       {/* ====== PEDIDOS ====== */}
+      <section className="mb-4 rounded-2xl border border-line bg-panel p-4">
+        <p className="mb-2 text-[11px] uppercase tracking-[0.16em] text-muted">
+          Buscar pedido por móvil
+        </p>
+        <div className="flex gap-2">
+          <input
+            value={buscarMovil}
+            onChange={(e) => setBuscarMovil(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && buscarPorMovil()}
+            inputMode="tel"
+            placeholder="600 00 00 00"
+            className="w-full rounded-lg border border-line bg-ink px-3 py-2.5 outline-none focus:border-violet"
+          />
+          <button
+            onClick={buscarPorMovil}
+            className="rounded-lg bg-violet px-4 font-semibold text-white"
+          >
+            Buscar
+          </button>
+        </div>
+        {resultMovil && resultMovil.length === 0 && (
+          <p className="mt-3 text-sm text-muted">Sin pedidos para ese móvil.</p>
+        )}
+        {resultMovil && resultMovil.length > 0 && (
+          <div className="mt-3">
+            {resultMovil.map((p) => (
+              <div key={p.id} className="flex items-center gap-2 border-b border-line py-2.5 last:border-0">
+                <span className="font-mono text-sm font-bold text-gold">{p.codigo}</span>
+                <span className="flex-1 truncate text-xs text-muted">
+                  {p.consumiciones_total != null
+                    ? `🎟️ Bono · ${p.estado === "canjeado" ? "agotado" : `quedan ${p.consumiciones_restantes}/${p.consumiciones_total}`}`
+                    : p.items.map((i) => `${i.qty}× ${i.nombre}`).join(" · ")}
+                </span>
+                <span className={`rounded-full border px-2 py-0.5 text-[10px] uppercase ${p.estado === "canjeado" ? "border-bad/30 text-bad" : "border-line text-muted"}`}>
+                  {p.estado}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
       <section className="rounded-2xl border border-line bg-panel p-4">
         <p className="mb-2 text-[11px] uppercase tracking-[0.16em] text-muted">Últimos pedidos</p>
         {pedidos.length === 0 && <p className="py-6 text-center text-muted">Aún no hay pedidos.</p>}
