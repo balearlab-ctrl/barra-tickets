@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { generarCodigo } from "@/lib/codigo";
+import { generarCodigo, iniciales } from "@/lib/codigo";
 import type { Producto } from "@/lib/types";
 
 // Recibe { items: [{ id, qty }], mesa }.
@@ -57,8 +57,16 @@ export async function POST(req: NextRequest) {
       consumiciones_total = bonos[0].consumiciones;
     }
 
+    // Prefijo del código a partir del nombre del evento (ej. "MSP")
+    const { data: cfg } = await supabase
+      .from("config")
+      .select("evento_nombre")
+      .eq("id", 1)
+      .maybeSingle();
+    const prefijo = iniciales((cfg as any)?.evento_nombre);
+
     // Código único (reintenta si colisiona)
-    let codigo = generarCodigo();
+    let codigo = generarCodigo(prefijo);
     for (let intento = 0; intento < 5; intento++) {
       const { data: existe } = await supabase
         .from("pedidos")
@@ -66,7 +74,7 @@ export async function POST(req: NextRequest) {
         .eq("codigo", codigo)
         .maybeSingle();
       if (!existe) break;
-      codigo = generarCodigo();
+      codigo = generarCodigo(prefijo);
     }
 
     const paymentIntent = await stripe.paymentIntents.create({
