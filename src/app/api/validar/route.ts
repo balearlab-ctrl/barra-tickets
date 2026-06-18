@@ -31,6 +31,10 @@ export async function POST(req: NextRequest) {
     if (error || !data) {
       return NextResponse.json({ resultado: "NO_ENCONTRADO" }, { status: 200 });
     }
+    // Un ticket de un evento ya cerrado no es válido en barra.
+    if ((data as any).archivado) {
+      return NextResponse.json({ resultado: "NO_ENCONTRADO" }, { status: 200 });
+    }
     return NextResponse.json({ resultado: "OK", pedido: data });
   }
 
@@ -47,6 +51,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ resultado: "YA_CANJEADO" }, { status: 200 });
     if (msg.includes("NO_PAGADO"))
       return NextResponse.json({ resultado: "NO_PAGADO" }, { status: 200 });
+    if (msg.includes("ARCHIVADO"))
+      return NextResponse.json({ resultado: "NO_ENCONTRADO" }, { status: 200 });
     if (msg.includes("NO_ENCONTRADO"))
       return NextResponse.json({ resultado: "NO_ENCONTRADO" }, { status: 200 });
     if (msg.includes("SALDO_INSUFICIENTE"))

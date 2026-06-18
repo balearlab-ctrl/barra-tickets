@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
       .filter((p): p is Producto => !!p && p.consumiciones > 1);
 
     if (bonos.length > 0) {
-      if (lineas.length !== 1 || items[0].qty != 1) {
+      if (lineas.length !== 1 || lineas[0].qty !== 1) {
         return NextResponse.json(
           { error: "El bonocopa se compra solo y de uno en uno" },
           { status: 400 }
