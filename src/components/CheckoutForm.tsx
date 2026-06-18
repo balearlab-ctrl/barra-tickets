@@ -36,6 +36,30 @@ export default function CheckoutForm({
   const [pin, setPin] = useState("");
   const [pin2, setPin2] = useState("");
   const [preparando, setPreparando] = useState(false);
+  const [movilExiste, setMovilExiste] = useState<boolean | null>(null);
+  const [comprobando, setComprobando] = useState(false);
+
+  const comprobarMovil = async () => {
+    const m = movil.replace(/[^0-9]/g, "");
+    if (m.length < 6) {
+      setMovilExiste(null);
+      return;
+    }
+    setComprobando(true);
+    try {
+      const r = await fetch("/api/movil-existe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ movil: m }),
+      });
+      const d = await r.json();
+      setMovilExiste(!!d.existe);
+    } catch {
+      setMovilExiste(null);
+    } finally {
+      setComprobando(false);
+    }
+  };
 
   const continuar = async () => {
     setError(null);
@@ -48,7 +72,7 @@ export default function CheckoutForm({
       setError("La clave debe tener 4 cifras.");
       return;
     }
-    if (pin !== pin2) {
+    if (movilExiste !== true && pin !== pin2) {
       setError("Las dos claves no coinciden.");
       return;
     }
@@ -94,15 +118,22 @@ export default function CheckoutForm({
           <label className="mb-1 block text-xs font-semibold text-muted">Móvil</label>
           <input
             value={movil}
-            onChange={(e) => setMovil(e.target.value)}
+            onChange={(e) => {
+              setMovil(e.target.value);
+              setMovilExiste(null);
+            }}
+            onBlur={comprobarMovil}
             inputMode="tel"
             placeholder="600 00 00 00"
             className="mb-3 w-full rounded-lg border border-line bg-ink px-3 py-2.5 outline-none focus:border-violet"
           />
 
-          <div className="flex gap-3">
-            <div className="flex-1">
-              <label className="mb-1 block text-xs font-semibold text-muted">Clave (4 cifras)</label>
+          {movilExiste === true ? (
+            <>
+              <div className="mb-2 rounded-lg border border-gold/40 bg-gold/10 px-3 py-2 text-xs font-semibold text-gold">
+                Este móvil ya tiene clave. Escríbela para ver todo junto.
+              </div>
+              <label className="mb-1 block text-xs font-semibold text-muted">Tu clave (4 cifras)</label>
               <input
                 value={pin}
                 onChange={(e) => setPin(e.target.value.replace(/[^0-9]/g, "").slice(0, 4))}
@@ -110,18 +141,33 @@ export default function CheckoutForm({
                 placeholder="••••"
                 className="w-full rounded-lg border border-line bg-ink px-3 py-2.5 text-center font-mono text-lg tracking-[0.3em] outline-none focus:border-violet"
               />
+            </>
+          ) : (
+            <div className="flex gap-3">
+              <div className="flex-1">
+                <label className="mb-1 block text-xs font-semibold text-muted">Clave (4 cifras)</label>
+                <input
+                  value={pin}
+                  onChange={(e) => setPin(e.target.value.replace(/[^0-9]/g, "").slice(0, 4))}
+                  inputMode="numeric"
+                  placeholder="••••"
+                  className="w-full rounded-lg border border-line bg-ink px-3 py-2.5 text-center font-mono text-lg tracking-[0.3em] outline-none focus:border-violet"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="mb-1 block text-xs font-semibold text-muted">Repite la clave</label>
+                <input
+                  value={pin2}
+                  onChange={(e) => setPin2(e.target.value.replace(/[^0-9]/g, "").slice(0, 4))}
+                  inputMode="numeric"
+                  placeholder="••••"
+                  className="w-full rounded-lg border border-line bg-ink px-3 py-2.5 text-center font-mono text-lg tracking-[0.3em] outline-none focus:border-violet"
+                />
+              </div>
             </div>
-            <div className="flex-1">
-              <label className="mb-1 block text-xs font-semibold text-muted">Repite la clave</label>
-              <input
-                value={pin2}
-                onChange={(e) => setPin2(e.target.value.replace(/[^0-9]/g, "").slice(0, 4))}
-                inputMode="numeric"
-                placeholder="••••"
-                className="w-full rounded-lg border border-line bg-ink px-3 py-2.5 text-center font-mono text-lg tracking-[0.3em] outline-none focus:border-violet"
-              />
-            </div>
-          </div>
+          )}
+
+          {comprobando && <p className="mt-2 text-xs text-muted">Comprobando móvil…</p>}
 
           {error && <p className="mt-3 text-sm text-bad">{error}</p>}
 

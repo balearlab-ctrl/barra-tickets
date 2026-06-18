@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { generarCodigo } from "@/lib/codigo";
-import { hashPin, normalizarMovil } from "@/lib/pin";
+import { hashPin, verifyPin, normalizarMovil } from "@/lib/pin";
 import type { Producto } from "@/lib/types";
 
 // Recibe { items: [{ id, qty }], mesa }.
@@ -26,6 +26,52 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = createAdminClient();
+
+    // Si este móvil ya tiene pedidos, la clave debe coincidir con la suya.
+    const { data: previos } = await supabase
+      .from("pedidos")
+      .select("pin_hash")
+      .eq("movil", movilLimpio)
+      .in("estado", ["pagado", "canjeado"]);
+
+    if (previos && previos.length > 0) {
+      // ¿Bloqueado por intentos fallidos?
+      const { data: rate } = await supabase
+        .from("recuperacion_rate")
+        .select("*")
+        .eq("movil", movilLimpio)
+        .maybeSingle();
+      if (rate?.bloqueado_hasta && new Date(rate.bloqueado_hasta) > new Date()) {
+        const mins = Math.ceil(
+          (new Date(rate.bloqueado_hasta).getTime() - Date.now()) / 60000
+        );
+        return NextResponse.json(
+          { error: `Demasiados intentos. Prueba en ${mins} min.` },
+          { status: 429 }
+        );
+      }
+
+      const ok = previos.some((p: any) => verifyPin(pinLimpio, p.pin_hash));
+      if (!ok) {
+        const fallos = (rate?.fallos || 0) + 1;
+        const bloquear = fallos >= 5;
+        await supabase.from("recuperacion_rate").upsert({
+          movil: movilLimpio,
+          fallos: bloquear ? 0 : fallos,
+          bloqueado_hasta: bloquear
+            ? new Date(Date.now() + 10 * 60000).toISOString()
+            : null,
+        });
+        return NextResponse.json(
+          { error: "Este móvil ya tiene otra clave. Escribe la que usaste antes." },
+          { status: 401 }
+        );
+      }
+      // Acierto: limpia intentos
+      await supabase
+        .from("recuperacion_rate")
+        .upsert({ movil: movilLimpio, fallos: 0, bloqueado_hasta: null });
+    }
     const ids = items.map((i: any) => i.id);
 
     const { data: productos, error } = await supabase
