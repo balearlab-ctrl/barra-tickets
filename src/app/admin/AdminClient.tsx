@@ -26,6 +26,14 @@ export default function AdminClient({ email }: { email: string }) {
   const [reseteando, setReseteando] = useState(false);
   const [resetMsg, setResetMsg] = useState<string | null>(null);
   const [facturas, setFacturas] = useState<any[]>([]);
+  const [resumen, setResumen] = useState({
+    ingresos: 0,
+    pedidos: 0,
+    copas: 0,
+    bonos: 0,
+    consumVendidas: 0,
+    consumServidas: 0,
+  });
   const [config, setConfig] = useState<Config>(CONFIG_DEFECTO);
   const [guardandoMarca, setGuardandoMarca] = useState(false);
   const [marcaOk, setMarcaOk] = useState(false);
@@ -60,6 +68,36 @@ export default function AdminClient({ email }: { email: string }) {
     setPedidos((peds as Pedido[]) || []);
     setFacturas(facts || []);
     if (cfg) setConfig(cfg as Config);
+
+    // Resumen del evento: TODOS los pedidos pagados/canjeados
+    const { data: todos } = await supabase
+      .from("pedidos")
+      .select("total_cent, estado, items, consumiciones_total, consumiciones_restantes")
+      .in("estado", ["pagado", "canjeado"]);
+    const lista = (todos as any[]) || [];
+    let ingresos = 0,
+      copas = 0,
+      bonos = 0,
+      consumVendidas = 0,
+      consumServidas = 0;
+    for (const p of lista) {
+      ingresos += p.total_cent || 0;
+      if (p.consumiciones_total != null) {
+        bonos += 1;
+        consumVendidas += p.consumiciones_total;
+        consumServidas += p.consumiciones_total - (p.consumiciones_restantes ?? 0);
+      } else {
+        copas += (p.items || []).reduce((s: number, i: any) => s + (i.qty || 0), 0);
+      }
+    }
+    setResumen({
+      ingresos,
+      pedidos: lista.length,
+      copas,
+      bonos,
+      consumVendidas,
+      consumServidas,
+    });
   };
 
   useEffect(() => {
@@ -234,14 +272,6 @@ export default function AdminClient({ email }: { email: string }) {
     router.refresh();
   };
 
-  const ingresos = pedidos
-    .filter((p) => p.estado !== "pendiente" && p.estado !== "cancelado")
-    .reduce((s, p) => s + p.total_cent, 0);
-  const canjeados = pedidos.filter((p) => p.estado === "canjeado").length;
-  const validos = pedidos.filter(
-    (p) => p.estado === "pagado" || p.estado === "canjeado"
-  ).length;
-
   if (mostrarForm) {
     return (
       <main className="mx-auto max-w-xl px-4 py-6">
@@ -306,10 +336,21 @@ export default function AdminClient({ email }: { email: string }) {
         <button onClick={salir} className="rounded-lg border border-line px-3 py-2 text-sm">Salir</button>
       </header>
 
-      <div className="mb-4 grid grid-cols-3 gap-2">
-        <Stat n={pedidos.length} k="Pedidos" />
-        <Stat n={euros(ingresos)} k="Ingresos" />
-        <Stat n={`${canjeados}/${validos}`} k="Canjeados" />
+      <p className="mb-2 text-[11px] uppercase tracking-[0.16em] text-muted">Resumen del evento</p>
+      <div className="mb-3 grid grid-cols-3 gap-2">
+        <Stat n={euros(resumen.ingresos)} k="Ingresos" />
+        <Stat n={resumen.pedidos} k="Pedidos" />
+        <Stat n={resumen.copas} k="Copas" />
+      </div>
+      <div className="mb-4 grid grid-cols-2 gap-2">
+        <Stat n={resumen.bonos} k="Bonos vendidos" />
+        <Stat n={`${resumen.consumServidas}/${resumen.consumVendidas}`} k="Consum. bono servidas" />
+      </div>
+
+      <div className="mb-4 flex justify-end">
+        <button onClick={cargar} className="rounded-lg border border-line px-3 py-1.5 text-xs font-semibold">
+          ↻ Actualizar
+        </button>
       </div>
 
       {/* ====== MARCA Y ASPECTO ====== */}
