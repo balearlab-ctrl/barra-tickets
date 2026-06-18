@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { QRCodeSVG } from "qrcode.react";
 import { euros, type PedidoItem } from "@/lib/types";
 
+type LogItem = { cantidad: number; creado_en: string };
 type Ped = {
   codigo: string;
   items: PedidoItem[];
@@ -11,7 +13,13 @@ type Ped = {
   creado_en: string;
   consumiciones_total: number | null;
   consumiciones_restantes: number | null;
+  historial: LogItem[];
 };
+
+const hora = (s: string) =>
+  new Date(s).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+const fecha = (s: string) =>
+  new Date(s).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit" });
 
 export default function RecuperarPage() {
   const [movil, setMovil] = useState("");
@@ -23,6 +31,7 @@ export default function RecuperarPage() {
   const buscar = async () => {
     setError(null);
     setCargando(true);
+    setPedidos(null);
     try {
       const r = await fetch("/api/recuperar", {
         method: "POST",
@@ -31,10 +40,11 @@ export default function RecuperarPage() {
       });
       const d = await r.json();
       if (d.resultado === "OK") setPedidos(d.pedidos);
+      else if (d.resultado === "SIN_PEDIDOS")
+        setError("No tienes pedidos comprados con este móvil todavía.");
       else if (d.resultado === "BLOQUEADO")
         setError(`Demasiados intentos. Prueba de nuevo en ${d.minutos} min.`);
-      else if (d.resultado === "INCORRECTO")
-        setError("Móvil o clave incorrectos.");
+      else if (d.resultado === "INCORRECTO") setError("Clave incorrecta.");
       else setError("No se pudo comprobar. Inténtalo de nuevo.");
     } catch {
       setError("Error de conexión.");
@@ -43,9 +53,12 @@ export default function RecuperarPage() {
     }
   };
 
+  const activos = (pedidos || []).filter((p) => p.estado !== "canjeado");
+  const consumidos = (pedidos || []).filter((p) => p.estado === "canjeado");
+
   return (
     <main className="mx-auto max-w-sm px-5 py-10">
-      <h1 className="font-display text-2xl font-extrabold">Recuperar mi pedido</h1>
+      <h1 className="font-display text-2xl font-extrabold">Mis pedidos</h1>
       <p className="mt-1 text-sm text-muted">
         Entra con el móvil y la clave de 4 cifras que pusiste al pagar.
       </p>
@@ -75,44 +88,102 @@ export default function RecuperarPage() {
             disabled={cargando}
             className="w-full rounded-lg bg-violet py-3 font-semibold text-white disabled:opacity-50"
           >
-            {cargando ? "Buscando…" : "Buscar mi pedido"}
+            {cargando ? "Buscando…" : "Ver mis pedidos"}
           </button>
         </div>
       )}
 
-      {pedidos && pedidos.length === 0 && (
-        <p className="mt-6 text-center text-muted">No hay pedidos con esos datos.</p>
-      )}
-
-      {pedidos && pedidos.length > 0 && (
-        <div className="mt-5 space-y-3">
-          {pedidos.map((p) => (
-            <a
-              key={p.codigo}
-              href={`/pedido/${p.codigo}`}
-              className="block rounded-2xl border border-line bg-panel p-4"
-            >
-              <div className="flex items-center justify-between">
-                <span className="font-mono text-xl font-bold text-gold">{p.codigo}</span>
-                <span className="text-xs text-muted">
-                  {new Date(p.creado_en).toLocaleString("es-ES")}
-                </span>
+      {pedidos && (
+        <div className="mt-5">
+          {/* ACTIVOS */}
+          {activos.length > 0 && (
+            <>
+              <p className="mb-2 text-[11px] uppercase tracking-[0.16em] text-muted">
+                Disponibles
+              </p>
+              <div className="space-y-4">
+                {activos.map((p) => (
+                  <div key={p.codigo} className="rounded-2xl border border-line bg-panel p-4 text-center">
+                    <div className="inline-block rounded-2xl bg-white p-3">
+                      <QRCodeSVG value={`TICKET:${p.codigo}`} size={150} level="M" />
+                    </div>
+                    <div className="mt-3 font-mono text-2xl font-bold tracking-[0.12em] text-gold">
+                      {p.codigo}
+                    </div>
+                    {p.consumiciones_total != null ? (
+                      <div className="mt-2 inline-block rounded-full border border-gold/40 bg-gold/10 px-3 py-1 text-sm font-bold text-gold">
+                        🎟️ Quedan {p.consumiciones_restantes} de {p.consumiciones_total}
+                      </div>
+                    ) : (
+                      <div className="mt-2 text-sm text-muted">
+                        {p.items.map((i) => `${i.qty}× ${i.nombre}`).join(" · ")}
+                      </div>
+                    )}
+                    {p.historial.length > 0 && (
+                      <div className="mt-3 border-t border-line pt-2 text-left text-xs text-muted">
+                        {p.historial.map((h, idx) => (
+                          <div key={idx} className="flex justify-between py-0.5">
+                            <span>Serviste {h.cantidad}</span>
+                            <span>{hora(h.creado_en)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
-              {p.consumiciones_total != null ? (
-                <div className="mt-1 text-sm">
-                  🎟️ Bonocopa ·{" "}
-                  {p.estado === "canjeado"
-                    ? "agotado"
-                    : `quedan ${p.consumiciones_restantes} de ${p.consumiciones_total}`}
-                </div>
-              ) : (
-                <div className="mt-1 text-sm text-muted">
-                  {p.items.map((i) => `${i.qty}× ${i.nombre}`).join(" · ")}
-                </div>
-              )}
-              <div className="mt-1 text-xs text-violet">Ver mi QR →</div>
-            </a>
-          ))}
+            </>
+          )}
+
+          {/* CONSUMIDOS */}
+          {consumidos.length > 0 && (
+            <>
+              <p className="mb-2 mt-7 text-[11px] uppercase tracking-[0.16em] text-muted">
+                Ya consumidos
+              </p>
+              <div className="space-y-3">
+                {consumidos.map((p) => (
+                  <div key={p.codigo} className="rounded-2xl border border-line bg-panel/60 p-4 opacity-70">
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono text-lg font-bold text-muted line-through">
+                        {p.codigo}
+                      </span>
+                      <span className="text-xs text-muted">{fecha(p.creado_en)}</span>
+                    </div>
+                    <div className="mt-1 text-sm text-muted line-through">
+                      {p.consumiciones_total != null
+                        ? `🎟️ Bonocopa ×${p.consumiciones_total}`
+                        : p.items.map((i) => `${i.qty}× ${i.nombre}`).join(" · ")}
+                    </div>
+                    {p.historial.length > 0 ? (
+                      <div className="mt-2 border-t border-line pt-2 text-xs text-muted">
+                        {p.historial.map((h, idx) => (
+                          <div key={idx} className="flex justify-between py-0.5">
+                            <span>Consumiste {h.cantidad}</span>
+                            <span>
+                              {fecha(h.creado_en)} · {hora(h.creado_en)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="mt-1 text-xs text-muted">Entregado</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          <button
+            onClick={() => {
+              setPedidos(null);
+              setPin("");
+            }}
+            className="mt-6 w-full rounded-lg border border-line py-2.5 text-sm font-semibold"
+          >
+            Salir
+          </button>
         </div>
       )}
     </main>

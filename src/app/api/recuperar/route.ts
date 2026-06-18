@@ -38,10 +38,15 @@ export async function POST(req: NextRequest) {
     .in("estado", ["pagado", "canjeado"])
     .order("creado_en", { ascending: false });
 
-  const validos = (pedidos || []).filter((ped: any) => verifyPin(p, ped.pin_hash));
+  // Sin ningún pedido para ese móvil: no es un fallo de clave.
+  if (!pedidos || pedidos.length === 0) {
+    return NextResponse.json({ resultado: "SIN_PEDIDOS" });
+  }
+
+  const validos = pedidos.filter((ped: any) => verifyPin(p, ped.pin_hash));
 
   if (validos.length === 0) {
-    // Falla: suma intento y bloquea si procede
+    // Falla de clave: suma intento y bloquea si procede
     const fallos = (rate?.fallos || 0) + 1;
     const bloquear = fallos >= MAX_FALLOS;
     await admin.from("recuperacion_rate").upsert({
@@ -57,8 +62,15 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // 3) Éxito: limpia intentos y devuelve los pedidos (sin la clave)
+  // 3) Éxito: limpia intentos, trae el historial y devuelve los pedidos (sin la clave)
   await admin.from("recuperacion_rate").upsert({ movil: m, fallos: 0, bloqueado_hasta: null });
+
+  const ids = validos.map((p: any) => p.id);
+  const { data: logs } = await admin
+    .from("consumiciones_log")
+    .select("pedido_id, cantidad, creado_en")
+    .in("pedido_id", ids)
+    .order("creado_en", { ascending: true });
 
   const limpio = validos.map((ped: any) => ({
     codigo: ped.codigo,
@@ -68,6 +80,9 @@ export async function POST(req: NextRequest) {
     creado_en: ped.creado_en,
     consumiciones_total: ped.consumiciones_total,
     consumiciones_restantes: ped.consumiciones_restantes,
+    historial: (logs || [])
+      .filter((l: any) => l.pedido_id === ped.id)
+      .map((l: any) => ({ cantidad: l.cantidad, creado_en: l.creado_en })),
   }));
 
   return NextResponse.json({ resultado: "OK", pedidos: limpio });
