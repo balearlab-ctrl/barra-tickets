@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
     .from("pedidos")
     .select("id")
     .eq("movil", m)
-    .in("estado", ["pagado", "canjeado"])
+    .not("pin_hash", "is", null)
     .limit(1);
 
   return NextResponse.json({ existe: (data?.length || 0) > 0 });

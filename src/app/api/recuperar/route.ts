@@ -43,19 +43,21 @@ export async function POST(req: NextRequest) {
 
   const normales = pedidos.filter((x: any) => x.consumiciones_total == null);
   const bonos = pedidos.filter((x: any) => x.consumiciones_total != null);
+  const bonosSinClave = bonos.filter((x: any) => !x.pin_hash);
+  const bonosConClave = bonos.filter((x: any) => !!x.pin_hash);
 
   // Bonos visibles solo si la clave coincide
   let bonosVisibles: any[] = [];
   let claveIncorrecta = false;
   let minutosBloqueo: number | undefined;
 
-  if (bonos.length > 0 && conClave) {
+  if (bonosConClave.length > 0 && conClave) {
     if (bloqueado) {
       minutosBloqueo = Math.ceil(
         (new Date(rate!.bloqueado_hasta).getTime() - Date.now()) / 60000
       );
     } else {
-      bonosVisibles = bonos.filter((b: any) => verifyPin(p, b.pin_hash));
+      bonosVisibles = bonosConClave.filter((b: any) => verifyPin(p, b.pin_hash));
       if (bonosVisibles.length === 0) {
         // Falla de clave: cuenta intento
         const fallos = (rate?.fallos || 0) + 1;
@@ -110,8 +112,9 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     resultado: "OK",
     pedidos: limpio,
-    hayBonos: bonos.length > 0,
+    hayBonos: bonosConClave.length > 0,
     bonosMostrados: bonosVisibles.length,
+    necesitaNuevaClave: bonosSinClave.length > 0,
     claveIncorrecta,
     minutos: minutosBloqueo,
   });

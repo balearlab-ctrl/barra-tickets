@@ -29,21 +29,28 @@ export default function RecuperarPage() {
   const [pedidos, setPedidos] = useState<Ped[] | null>(null);
   const [hayBonos, setHayBonos] = useState(false);
   const [bonosMostrados, setBonosMostrados] = useState(0);
+  const [necesitaNuevaClave, setNecesitaNuevaClave] = useState(false);
+  const [nueva1, setNueva1] = useState("");
+  const [nueva2, setNueva2] = useState("");
+  const [errNueva, setErrNueva] = useState<string | null>(null);
+  const [guardandoClave, setGuardandoClave] = useState(false);
 
-  const buscar = async () => {
+  const buscar = async (pinArg?: string) => {
     setError(null);
     setCargando(true);
+    const usarPin = pinArg ?? pin;
     try {
       const r = await fetch("/api/recuperar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ movil, pin }),
+        body: JSON.stringify({ movil, pin: usarPin }),
       });
       const d = await r.json();
       if (d.resultado === "OK") {
         setPedidos(d.pedidos);
         setHayBonos(!!d.hayBonos);
         setBonosMostrados(d.bonosMostrados || 0);
+        setNecesitaNuevaClave(!!d.necesitaNuevaClave);
         if (d.claveIncorrecta && d.minutos)
           setError(`Demasiados intentos. Prueba en ${d.minutos} min.`);
         else if (d.claveIncorrecta) setError("Clave incorrecta para tu bono.");
@@ -54,6 +61,38 @@ export default function RecuperarPage() {
       setError("Error de conexión.");
     } finally {
       setCargando(false);
+    }
+  };
+
+  const crearClave = async () => {
+    setErrNueva(null);
+    if (!/^\d{4}$/.test(nueva1)) {
+      setErrNueva("La clave debe tener 4 cifras.");
+      return;
+    }
+    if (nueva1 !== nueva2) {
+      setErrNueva("Las dos claves no coinciden.");
+      return;
+    }
+    setGuardandoClave(true);
+    try {
+      const r = await fetch("/api/fijar-clave", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ movil, pin: nueva1 }),
+      });
+      const d = await r.json();
+      if (d.ok) {
+        setPin(nueva1);
+        setNecesitaNuevaClave(false);
+        setNueva1("");
+        setNueva2("");
+        await buscar(nueva1);
+      } else setErrNueva(d.error || "No se pudo guardar.");
+    } catch {
+      setErrNueva("Error de conexión.");
+    } finally {
+      setGuardandoClave(false);
     }
   };
 
@@ -89,7 +128,7 @@ export default function RecuperarPage() {
         />
         {error && <p className="mb-3 text-sm text-bad">{error}</p>}
         <button
-          onClick={buscar}
+          onClick={() => buscar()}
           disabled={cargando}
           className="w-full rounded-lg bg-violet py-3 font-semibold text-white disabled:opacity-50"
         >
@@ -97,7 +136,45 @@ export default function RecuperarPage() {
         </button>
       </div>
 
-      {pedidos && hayBonos && bonosMostrados === 0 && (
+      {pedidos && necesitaNuevaClave && (
+        <div className="mt-4 rounded-2xl border border-gold/40 bg-gold/10 p-4">
+          <p className="text-center text-sm font-semibold text-gold">
+            🎟️ Tu bono no tiene clave. Crea una nueva para desbloquearlo.
+          </p>
+          <div className="mt-3 flex gap-3">
+            <div className="flex-1">
+              <label className="mb-1 block text-xs font-semibold text-muted">Clave (4 cifras)</label>
+              <input
+                value={nueva1}
+                onChange={(e) => setNueva1(e.target.value.replace(/[^0-9]/g, "").slice(0, 4))}
+                inputMode="numeric"
+                placeholder="••••"
+                className="w-full rounded-lg border border-line bg-ink px-3 py-2.5 text-center font-mono text-lg tracking-[0.3em] outline-none focus:border-violet"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="mb-1 block text-xs font-semibold text-muted">Repite la clave</label>
+              <input
+                value={nueva2}
+                onChange={(e) => setNueva2(e.target.value.replace(/[^0-9]/g, "").slice(0, 4))}
+                inputMode="numeric"
+                placeholder="••••"
+                className="w-full rounded-lg border border-line bg-ink px-3 py-2.5 text-center font-mono text-lg tracking-[0.3em] outline-none focus:border-violet"
+              />
+            </div>
+          </div>
+          {errNueva && <p className="mt-2 text-sm text-bad">{errNueva}</p>}
+          <button
+            onClick={crearClave}
+            disabled={guardandoClave}
+            className="mt-3 w-full rounded-lg bg-violet py-3 font-semibold text-white disabled:opacity-50"
+          >
+            {guardandoClave ? "Guardando…" : "Guardar clave y ver mi bono"}
+          </button>
+        </div>
+      )}
+
+      {pedidos && !necesitaNuevaClave && hayBonos && bonosMostrados === 0 && (
         <p className="mt-4 rounded-xl border border-gold/40 bg-gold/10 p-3 text-center text-sm text-gold">
           🎟️ Tienes un bono protegido. Escribe tu clave de 4 cifras arriba para verlo.
         </p>
