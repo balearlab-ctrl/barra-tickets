@@ -33,6 +33,7 @@ export default function AdminClient({ email }: { email: string }) {
     bonos: 0,
     consumVendidas: 0,
     consumServidas: 0,
+    porProducto: [] as { nombre: string; unidades: number; ingresos: number }[],
   });
   const [config, setConfig] = useState<Config>(CONFIG_DEFECTO);
   const [guardandoMarca, setGuardandoMarca] = useState(false);
@@ -80,16 +81,33 @@ export default function AdminClient({ email }: { email: string }) {
       bonos = 0,
       consumVendidas = 0,
       consumServidas = 0;
+    const prodMap = new Map<string, { unidades: number; ingresos: number }>();
+    const sumar = (nombre: string, unidades: number, ingresos: number) => {
+      const cur = prodMap.get(nombre) || { unidades: 0, ingresos: 0 };
+      cur.unidades += unidades;
+      cur.ingresos += ingresos;
+      prodMap.set(nombre, cur);
+    };
     for (const p of lista) {
       ingresos += p.total_cent || 0;
       if (p.consumiciones_total != null) {
         bonos += 1;
         consumVendidas += p.consumiciones_total;
         consumServidas += p.consumiciones_total - (p.consumiciones_restantes ?? 0);
+        // El bono cuenta como 1 venta de su producto
+        const linea = (p.items || [])[0];
+        if (linea) sumar(linea.nombre, 1, p.total_cent || 0);
       } else {
-        copas += (p.items || []).reduce((s: number, i: any) => s + (i.qty || 0), 0);
+        for (const i of p.items || []) {
+          copas += i.qty || 0;
+          sumar(i.nombre, i.qty || 0, (i.precio_cent || 0) * (i.qty || 0));
+        }
       }
     }
+    const porProducto = Array.from(prodMap.entries())
+      .map(([nombre, v]) => ({ nombre, ...v }))
+      .sort((a, b) => b.unidades - a.unidades);
+
     setResumen({
       ingresos,
       pedidos: lista.length,
@@ -97,6 +115,7 @@ export default function AdminClient({ email }: { email: string }) {
       bonos,
       consumVendidas,
       consumServidas,
+      porProducto,
     });
   };
 
@@ -352,6 +371,30 @@ export default function AdminClient({ email }: { email: string }) {
           ↻ Actualizar
         </button>
       </div>
+
+      {resumen.porProducto.length > 0 && (
+        <section className="mb-4 rounded-2xl border border-line bg-panel p-4">
+          <p className="mb-2 text-[11px] uppercase tracking-[0.16em] text-muted">
+            Ventas por producto
+          </p>
+          <div className="flex items-center justify-between border-b border-line pb-1 text-[11px] uppercase tracking-wide text-muted">
+            <span>Producto</span>
+            <span className="flex gap-4">
+              <span className="w-10 text-right">Uds.</span>
+              <span className="w-16 text-right">Ingresos</span>
+            </span>
+          </div>
+          {resumen.porProducto.map((p) => (
+            <div key={p.nombre} className="flex items-center justify-between py-1.5 text-sm">
+              <span className="truncate pr-2">{p.nombre}</span>
+              <span className="flex gap-4 font-mono">
+                <span className="w-10 text-right font-bold">{p.unidades}</span>
+                <span className="w-16 text-right text-gold">{euros(p.ingresos)}</span>
+              </span>
+            </div>
+          ))}
+        </section>
+      )}
 
       {/* ====== MARCA Y ASPECTO ====== */}
       <section className="mb-4 rounded-2xl border border-line bg-panel p-4">
