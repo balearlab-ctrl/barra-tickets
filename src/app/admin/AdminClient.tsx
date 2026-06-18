@@ -35,6 +35,12 @@ export default function AdminClient({ email }: { email: string }) {
     consumServidas: 0,
     porProducto: [] as { nombre: string; unidades: number; ingresos: number }[],
   });
+  const [eventos, setEventos] = useState<any[]>([]);
+  const [tieneReinicioClave, setTieneReinicioClave] = useState(false);
+  const [nuevaReinicioClave, setNuevaReinicioClave] = useState("");
+  const [claveReinicio, setClaveReinicio] = useState("");
+  const [reinicioMsg, setReinicioMsg] = useState<string | null>(null);
+  const [reiniciando, setReiniciando] = useState(false);
   const [config, setConfig] = useState<Config>(CONFIG_DEFECTO);
   const [guardandoMarca, setGuardandoMarca] = useState(false);
   const [marcaOk, setMarcaOk] = useState(false);
@@ -68,7 +74,17 @@ export default function AdminClient({ email }: { email: string }) {
     setProductos((prods as Producto[]) || []);
     setPedidos((peds as Pedido[]) || []);
     setFacturas(facts || []);
-    if (cfg) setConfig(cfg as Config);
+    if (cfg) {
+      setConfig(cfg as Config);
+      setTieneReinicioClave(!!(cfg as any).reinicio_hash);
+    }
+
+    const { data: evs } = await supabase
+      .from("eventos_archivados")
+      .select("*")
+      .order("cerrado_en", { ascending: false })
+      .limit(50);
+    setEventos(evs || []);
 
     // Resumen del evento: TODOS los pedidos pagados/canjeados
     const { data: todos } = await supabase
@@ -123,6 +139,52 @@ export default function AdminClient({ email }: { email: string }) {
     cargar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const guardarReinicioClave = async () => {
+    if (nuevaReinicioClave.trim().length < 4) {
+      setReinicioMsg("La clave debe tener al menos 4 caracteres.");
+      return;
+    }
+    const r = await fetch("/api/admin/reinicio-clave", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clave: nuevaReinicioClave.trim() }),
+    });
+    const d = await r.json();
+    if (d.ok) {
+      setTieneReinicioClave(true);
+      setNuevaReinicioClave("");
+      setReinicioMsg("✓ Clave de reinicio guardada.");
+    } else setReinicioMsg(d.error || "No se pudo guardar.");
+  };
+
+  const ejecutarReinicio = async () => {
+    if (
+      !confirm(
+        "Vas a CERRAR el evento actual: se archivará el resumen y se borrarán los pedidos para empezar limpio. ¿Continuar?"
+      )
+    )
+      return;
+    setReiniciando(true);
+    setReinicioMsg(null);
+    try {
+      const r = await fetch("/api/admin/reinicio", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clave: claveReinicio.trim() }),
+      });
+      const d = await r.json();
+      if (d.ok) {
+        setClaveReinicio("");
+        setReinicioMsg("✓ Evento archivado. Panel listo para la siguiente fiesta.");
+        await cargar();
+      } else setReinicioMsg(d.error || "No se pudo reiniciar.");
+    } catch {
+      setReinicioMsg("Error de conexión.");
+    } finally {
+      setReiniciando(false);
+    }
+  };
 
   const marcarEmitida = async (id: number) => {
     await supabase.from("facturas").update({ estado: "emitida" }).eq("id", id);
@@ -609,6 +671,93 @@ export default function AdminClient({ email }: { email: string }) {
             <span className={`rounded-full border px-2 py-0.5 text-[10px] uppercase ${p.estado === "canjeado" ? "border-bad/30 text-bad" : "border-line text-muted"}`}>{p.estado}</span>
           </div>
         ))}
+      </section>
+
+      <section className="mt-4 rounded-2xl border border-line bg-panel p-4">
+        <p className="mb-2 text-[11px] uppercase tracking-[0.16em] text-muted">
+          Cerrar y reiniciar evento
+        </p>
+        <p className="mb-3 text-xs text-muted">
+          Archiva el resumen de esta fiesta en el histórico y deja el panel limpio para la
+          siguiente. El nombre y la imagen los cambias arriba, en “Marca y aspecto”.
+        </p>
+
+        {!tieneReinicioClave ? (
+          <div className="rounded-xl border border-gold/30 bg-gold/5 p-3">
+            <p className="mb-2 text-xs font-semibold text-gold">
+              Primero define una clave de reinicio (la pedirá para cerrar el evento).
+            </p>
+            <div className="flex gap-2">
+              <input
+                value={nuevaReinicioClave}
+                onChange={(e) => setNuevaReinicioClave(e.target.value)}
+                placeholder="Clave de reinicio"
+                className="w-full rounded-lg border border-line bg-ink px-3 py-2.5 outline-none focus:border-violet"
+              />
+              <button
+                onClick={guardarReinicioClave}
+                className="rounded-lg bg-violet px-4 font-semibold text-white"
+              >
+                Guardar
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <label className="mb-1 block text-xs font-semibold text-muted">
+              Clave de reinicio
+            </label>
+            <div className="flex gap-2">
+              <input
+                value={claveReinicio}
+                onChange={(e) => setClaveReinicio(e.target.value)}
+                type="password"
+                placeholder="••••"
+                className="w-full rounded-lg border border-line bg-ink px-3 py-2.5 outline-none focus:border-violet"
+              />
+              <button
+                onClick={ejecutarReinicio}
+                disabled={reiniciando || !claveReinicio.trim()}
+                className="whitespace-nowrap rounded-lg border border-bad/50 px-4 font-semibold text-bad disabled:opacity-50"
+              >
+                {reiniciando ? "…" : "Cerrar evento"}
+              </button>
+            </div>
+            <button
+              onClick={() => {
+                setNuevaReinicioClave("");
+                setTieneReinicioClave(false);
+              }}
+              className="mt-2 text-xs text-muted underline"
+            >
+              Cambiar la clave de reinicio
+            </button>
+          </>
+        )}
+
+        {reinicioMsg && <p className="mt-2 text-sm text-muted">{reinicioMsg}</p>}
+
+        {eventos.length > 0 && (
+          <div className="mt-4 border-t border-line pt-3">
+            <p className="mb-2 text-[11px] uppercase tracking-[0.16em] text-muted">
+              Histórico de eventos
+            </p>
+            {eventos.map((e) => (
+              <div key={e.id} className="border-b border-line py-2 last:border-0">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold">{e.nombre || "Evento"}</span>
+                  <span className="font-mono text-sm text-gold">
+                    {euros(e.resumen?.ingresos || 0)}
+                  </span>
+                </div>
+                <div className="text-xs text-muted">
+                  {new Date(e.cerrado_en).toLocaleString("es-ES")} · {e.resumen?.pedidos || 0}{" "}
+                  pedidos · {e.resumen?.copas || 0} copas · {e.resumen?.bonos || 0} bonos
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       <style>{`.icon{border:1px solid #2A2733;background:transparent;width:34px;height:34px;border-radius:9px;cursor:pointer}`}</style>
